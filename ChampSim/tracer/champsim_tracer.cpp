@@ -9,11 +9,20 @@
 #include <stdlib.h>
 #include <string.h>
 #include <string>
+#include <bitset>
+
+//sufyan
+#include <unistd.h>
+#include "control_manager.H"
+#include <vector>
+#include <iomanip>
 
 #define NUM_INSTR_DESTINATIONS 2
 #define NUM_INSTR_SOURCES 4
 
-using namespace std;
+int num_xchg = 0;
+//using namespace std;
+using namespace CONTROLLER; //sufyan
 
 typedef struct trace_instr_format {
     unsigned long long int ip;  // instruction pointer (program counter) value
@@ -76,24 +85,31 @@ INT32 Usage()
 // Analysis routines
 /* ===================================================================== */
 
-void BeginInstruction(VOID *ip, UINT32 op_code, VOID *opstring)
+void BeginInstruction(ADDRINT ip, UINT32 op_code, VOID *opstring)
 {
     instrCount++;
     //printf("[%p %u %s ", ip, opcode, (char*)opstring);
+    tracing_on = true;
+    // if(instrCount > KnobSkipInstructions.Value()) 
+    // {
+    //     tracing_on = true;
 
-    if(instrCount > KnobSkipInstructions.Value()) 
-    {
-        tracing_on = true;
-
-        if(instrCount > (KnobTraceInstructions.Value()+KnobSkipInstructions.Value()))
-            tracing_on = false;
-    }
+    //     if(instrCount > (KnobTraceInstructions.Value()+KnobSkipInstructions.Value()))
+    //         tracing_on = false;
+    // }
 
     if(!tracing_on) 
         return;
 
     // reset the current instruction
     curr_instr.ip = (unsigned long long int)ip;
+    
+
+    //cout << "ip_converted=" << hex<< curr_instr.ip  << endl;
+    //cout << "ip=" << hex<< ip  << endl;
+    //std::cout << "opcode=" << (op_code)  << std::endl;
+    //cout << "opcode=" << hex << (op_code)  << endl;
+    
 
     curr_instr.is_branch = 0;
     curr_instr.branch_taken = 0;
@@ -109,6 +125,30 @@ void BeginInstruction(VOID *ip, UINT32 op_code, VOID *opstring)
         curr_instr.source_registers[i] = 0;
         curr_instr.source_memory[i] = 0;
     }
+
+
+    UINT32 val = 1719;
+
+    if(op_code == val) 
+    {
+        num_xchg = num_xchg + 1;
+
+        std::cout << "PC=" << hex << curr_instr.ip  << std::endl;
+        //std::cout << "setting src regs" << endl;
+        if(num_xchg >= 10)
+        {
+            std::cout << "inside if PC=" << hex << curr_instr.ip  << std::endl;
+            for(int i=0; i<NUM_INSTR_SOURCES; i++) 
+            {
+                curr_instr.source_memory[i] = 87;
+            }
+        }
+    }
+    else
+    {
+        num_xchg = 0;
+    }
+
 }
 
 void EndInstruction()
@@ -314,7 +354,10 @@ VOID Instruction(INS ins, VOID *v)
 {
     // begin each instruction with this function
     UINT32 opcode = INS_Opcode(ins);
+    //cout << INS_Mnemonic(ins)  << "\t opcode=" << opcode << endl;
     INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)BeginInstruction, IARG_INST_PTR, IARG_UINT32, opcode, IARG_END);
+
+    //NS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)printregs, IARG_REG_VALUE, IARG_END);
 
     // instrument branch instructions
     if(INS_IsBranch(ins))
@@ -365,7 +408,7 @@ VOID Instruction(INS ins, VOID *v)
     }
 
     // finalize each instruction with this function
-    INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)EndInstruction, IARG_END);
+    //INS_InsertCall(ins, IPOINT_BEFORE, (AFUNPTR)EndInstruction, IARG_END); //commendted:sufyan    
 }
 
 /*!
